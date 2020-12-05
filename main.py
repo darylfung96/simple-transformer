@@ -43,7 +43,7 @@ SRC, TRG = create_fields(opt)
 opt.train = create_dataset(opt, SRC, TRG)
 src_vocab = len(SRC.vocab)
 trg_vocab = len(TRG.vocab)
-model = SimpleTransformer(src_vocab, trg_vocab, dims, N, heads)
+model = SimpleTransformer(src_vocab, trg_vocab, dims, N, heads, opt)
 
 opt.optimizer = torch.optim.Adam(model.parameters(), lr=opt.lr, betas=(0.9, 0.98), eps=1e-9)
 
@@ -51,7 +51,7 @@ opt.optimizer = torch.optim.Adam(model.parameters(), lr=opt.lr, betas=(0.9, 0.98
 class LightningTransformer(pl.LightningModule):
     def __init__(self, src_vocab, target_vocab, dims, N, heads, opt):
         super(LightningTransformer, self).__init__()
-        self.transformer = SimpleTransformer(src_vocab, target_vocab, dims, N, heads)
+        self.transformer = SimpleTransformer(src_vocab, target_vocab, dims, N, heads, opt)
         self.cptime = time.time()
         self.opt = opt
         self.total_loss = 0

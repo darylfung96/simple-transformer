@@ -81,6 +81,68 @@ class MultiHeadAttention(nn.Module):
         return output
 
 
+class LinearMultiHeadAttention(nn.Module):
+    def __init__(self, heads, seq_length, dims, k=128, dropout=0.1):
+        super(LinearMultiHeadAttention, self).__init__()
+
+        self.dims = dims
+        self.dim_each = dims//heads
+        self.heads = heads
+        self.k = k
+
+        self.q_linear = nn.Linear(dims, dims)
+        self.k_linear = nn.Linear(dims, dims)
+        self.v_linear = nn.Linear(dims, dims)
+
+        def init_(tensor):
+            dim = tensor.shape[-1]
+            std = 1 / math.sqrt(dim)
+            tensor.uniform_(-std, std)
+            return tensor
+        self.proj_k = nn.Parameter(init_(torch.zeros(seq_length, k)))
+        self.proj_v = nn.Parameter(init_(torch.zeros(seq_length, k)))
+
+        self.dropout = nn.Dropout(dropout)
+        self.out = nn.Linear(dims, dims)
+
+    def attention(self, q, k, v, dims_each, mask, dropout):
+        # q (b, h, n, d)
+        # k/v (b, h, k, d)
+        scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(dims_each)  # b, h, n, k
+        scores = scores.transpose(2, 3)  # b, h, k, n
+        # mask it
+        if mask is not None:
+            mask = mask.unsqueeze(1)
+            scores = scores.masked_fill(mask == 0, -1e9)
+
+        scores = F.softmax(scores, dim=-1)
+        if dropout is not None:
+            scores = dropout(scores)
+
+        output = torch.einsum('bhkn,bhkd->bhnd', scores, v)  # torch.matmul(scores, v)  # v (b, h, k, d)
+        return output
+
+    def forward(self, q, k, v, mask=None):
+        batch_size = q.size(0)
+        strlen = q.size(1)
+
+        k = self.k_linear(k)  # .view(batch_size, self.heads, -1, self.dim_each)
+        q = self.q_linear(q).view(batch_size, self.heads, -1, self.dim_each)
+        v = self.v_linear(v)  # .view(batch_size, self.heads, -1, self.dim_each)
+
+        projected_k = torch.einsum('bnd,nk->bkd', k, self.proj_k[:strlen, :])
+        projected_v = torch.einsum('bnd,nk->bkd', v, self.proj_v[:strlen, :])
+        projected_k = projected_k.reshape(batch_size, self.k, self.heads, self.dim_each).transpose(1, 2).\
+            expand(-1, self.heads, -1, -1)
+        projected_v = projected_v.reshape(batch_size, self.k, self.heads, self.dim_each).transpose(1, 2).\
+            expand(-1, self.heads, -1, -1)
+
+        scores = self.attention(q, projected_k, projected_v, self.dim_each, mask, self.dropout)
+        scores = scores.transpose(1, 2).contiguous().view(batch_size, -1, self.dims)  # after transpose need contiguous
+        output = self.out(scores)
+        return output
+
+
 class FeedForward(nn.Module):
     def __init__(self, dims, d_ff=2048, dropout=0.1):
         super(FeedForward, self).__init__()
@@ -111,11 +173,11 @@ class Norm(nn.Module):
 
 
 class EncoderLayer(nn.Module):
-    def  __init__(self, dims, heads, dropout=0.1):
+    def  __init__(self, dims, heads, opt, dropout=0.1):
         super(EncoderLayer, self).__init__()
         self.norm1 = Norm(dims)
         self.norm2 = Norm(dims)
-        self.attn = MultiHeadAttention(heads, dims, dropout)
+        self.attn = LinearMultiHeadAttention(heads, opt.max_strlen, dims, dropout=dropout)
         self.ff = FeedForward(dims)
         self.dropout1 = nn.Dropout(dropout)
         self.dropout2 = nn.Dropout(dropout)
@@ -158,11 +220,11 @@ def get_clones(module, N):
 
 
 class Encoder(nn.Module):
-    def __init__(self, vocab_size, dims, N, heads):
+    def __init__(self, vocab_size, dims, N, heads, opt):
         super(Encoder, self).__init__()
         self.embed = Embedder(vocab_size, dims)
         self.pe = PositionalEncoding(dims)
-        self.layers = get_clones(EncoderLayer(dims, heads), N)
+        self.layers = get_clones(EncoderLayer(dims, heads, opt), N)
         self.norm = Norm(dims)
         self.num_layers = N
 
@@ -193,9 +255,10 @@ class Decoder(nn.Module):
 
 
 class SimpleTransformer(nn.Module):
-    def __init__(self, src_vocab, target_vocab, dims, N, heads):
+    def __init__(self, src_vocab, target_vocab, dims, N, heads, opt):
         super(SimpleTransformer, self).__init__()
-        self.encoder = Encoder(src_vocab, dims, N, heads)
+        self.opt = opt
+        self.encoder = Encoder(src_vocab, dims, N, heads, opt)
         self.decoder = Decoder(target_vocab, dims, N, heads)
         self.out = nn.Linear(dims, target_vocab)
 
