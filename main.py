@@ -110,7 +110,8 @@ def train_model(model, opt):
     model.train()
     start = time.time()
 
-    trainer = pl.Trainer(max_epochs=opt.epochs, gpus=opt.device=='cuda')
+    gpus = 1 if opt.device == 'cuda' else 0
+    trainer = pl.Trainer(max_epochs=opt.epochs, gpus=gpus)
     trainer.fit(model, opt.train)
     # if opt.checkpoint > 0:
     #     cptime = time.time()
