@@ -275,10 +275,10 @@ class Decoder(nn.Module):
 
 
 class SimpleTransformer(nn.Module):
-    def __init__(self, src_vocab, target_vocab, dims, N, heads, opt, is_hierarchical=False):
+    def __init__(self, src_vocab, target_vocab, dims, N, heads, opt):
         super(SimpleTransformer, self).__init__()
         self.opt = opt
-        if is_hierarchical:
+        if opt.is_hierarchical:
             self.encoder = HierarchicalEncoder(src_vocab, dims, N, heads, opt)
         else:
             self.encoder = Encoder(src_vocab, dims, N, heads, opt)

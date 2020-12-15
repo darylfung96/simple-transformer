@@ -44,15 +44,15 @@ SRC, TRG = create_fields(opt)
 opt.train = create_dataset(opt, SRC, TRG)
 src_vocab = len(SRC.vocab)
 trg_vocab = len(TRG.vocab)
-model = SimpleTransformer(src_vocab, trg_vocab, dims, N, heads, opt, is_hierarchical=opt.is_hierarchical)
+model = SimpleTransformer(src_vocab, trg_vocab, dims, N, heads, opt)
 
 opt.optimizer = torch.optim.Adam(model.parameters(), lr=opt.lr, betas=(0.9, 0.98), eps=1e-9)
 
 
 class LightningTransformer(pl.LightningModule):
-    def __init__(self, src_vocab, target_vocab, dims, N, heads, opt, is_hierarchical=False):
+    def __init__(self, src_vocab, target_vocab, dims, N, heads, opti):
         super(LightningTransformer, self).__init__()
-        self.transformer = SimpleTransformer(src_vocab, target_vocab, dims, N, heads, opt, is_hierarchical)
+        self.transformer = SimpleTransformer(src_vocab, target_vocab, dims, N, heads, opt)
         self.cptime = time.time()
         self.opt = opt
         self.total_loss = 0
@@ -110,7 +110,7 @@ def train_model(model, opt):
     model.train()
     start = time.time()
 
-    trainer = pl.Trainer(max_epochs=opt.epochs)
+    trainer = pl.Trainer(max_epochs=opt.epochs, gpus=opt.device=='cuda')
     trainer.fit(model, opt.train)
     # if opt.checkpoint > 0:
     #     cptime = time.time()
