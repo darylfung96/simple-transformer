@@ -66,7 +66,7 @@ class LightningTransformer(pl.LightningModule):
         trg = batch.trg.transpose(0, 1)
         trg_input = trg[:, :-1]
         src_mask, trg_mask = create_masks(src, trg_input, self.opt)
-        preds = model(src, trg_input, src_mask, trg_mask)
+        preds = self.transformer(src, trg_input, src_mask, trg_mask)
         ys = trg[:, 1:].contiguous().view(-1)
         self.opt.optimizer.zero_grad()
         loss = F.cross_entropy(preds.view(-1, preds.size(-1)), ys, ignore_index=self.opt.trg_pad)
@@ -90,8 +90,10 @@ class LightningTransformer(pl.LightningModule):
             self.total_loss = 0
 
         if opt.checkpoint > 0 and ((time.time() - self.cptime) // 60) // opt.checkpoint >= 1:
-            torch.save(model.state_dict(), 'weights/model_weights')
+            torch.save(self.transformer.state_dict(), 'weights/model_weights.pkl')
             self.cptime = time.time()
+
+        self.log('training_loss', loss.item(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return loss
 
     def configure_optimizers(self):
@@ -124,7 +126,7 @@ def train_model(model, opt):
     #           ((time.time() - start) // 60, epoch + 1, "".join(' ' * 20), 0, '...'), end='\r')
     #
     # if opt.checkpoint > 0:
-    #     torch.save(model.state_dict(), 'weights/model_weights')
+    #     torch.save(model.state_dict(), 'weights/model_weights.pkl')
 
     # for i, batch in enumerate(opt.train):
 
