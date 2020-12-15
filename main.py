@@ -31,6 +31,7 @@ parser.add_argument('-max_strlen', type=int, default=80)
 parser.add_argument('-floyd', action='store_true')
 parser.add_argument('-checkpoint', type=int, default=0)
 parser.add_argument('-device', type=str, default='cpu')
+parser.add_argument('-is_hierarchical', action='store_true', default=False)
 opt = parser.parse_args()
 
 dims = 512
@@ -43,15 +44,15 @@ SRC, TRG = create_fields(opt)
 opt.train = create_dataset(opt, SRC, TRG)
 src_vocab = len(SRC.vocab)
 trg_vocab = len(TRG.vocab)
-model = SimpleTransformer(src_vocab, trg_vocab, dims, N, heads, opt)
+model = SimpleTransformer(src_vocab, trg_vocab, dims, N, heads, opt, is_hierarchical=opt.is_hierarchical)
 
 opt.optimizer = torch.optim.Adam(model.parameters(), lr=opt.lr, betas=(0.9, 0.98), eps=1e-9)
 
 
 class LightningTransformer(pl.LightningModule):
-    def __init__(self, src_vocab, target_vocab, dims, N, heads, opt):
+    def __init__(self, src_vocab, target_vocab, dims, N, heads, opt, is_hierarchical=False):
         super(LightningTransformer, self).__init__()
-        self.transformer = SimpleTransformer(src_vocab, target_vocab, dims, N, heads, opt)
+        self.transformer = SimpleTransformer(src_vocab, target_vocab, dims, N, heads, opt, is_hierarchical)
         self.cptime = time.time()
         self.opt = opt
         self.total_loss = 0
