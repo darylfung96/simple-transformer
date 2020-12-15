@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import time
 import pytorch_lightning as pl
+from pytorch_lightning.callbacks import ModelCheckpoint
 
 from transformer import SimpleTransformer
 from Process import read_data, create_fields, create_dataset
@@ -53,9 +54,11 @@ class LightningTransformer(pl.LightningModule):
     def __init__(self, src_vocab, target_vocab, dims, N, heads, opti):
         super(LightningTransformer, self).__init__()
         self.transformer = SimpleTransformer(src_vocab, target_vocab, dims, N, heads, opt)
+        self.transformer.load_state_dict(torch.load('weights/model_weights.pth', map_location=opt.device))
         self.cptime = time.time()
         self.opt = opt
         self.total_loss = 0
+        self.best_loss = 10000
 
     def forward(self, src, target, src_mask, target_mask):
         output = self.transformer(src, target, src_mask, target_mask)
@@ -89,11 +92,16 @@ class LightningTransformer(pl.LightningModule):
             #            "".join(' ' * (20 - (p // 5))), p, avg_loss))
             self.total_loss = 0
 
-        if opt.checkpoint > 0 and ((time.time() - self.cptime) // 60) // opt.checkpoint >= 1:
+        # if opt.checkpoint > 0 and ((time.time() - self.cptime) // 60) // opt.checkpoint >= 1:
+        #     torch.save(self.transformer.state_dict(), 'weights/model_weights.pth')
+        #     self.cptime = time.time()
+
+        if loss < self.best_loss:
             torch.save(self.transformer.state_dict(), 'weights/model_weights.pth')
-            self.cptime = time.time()
+            self.best_loss = loss
 
         self.log('training_loss', loss.item(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
+
         return loss
 
     def configure_optimizers(self):
@@ -113,6 +121,7 @@ def train_model(model, opt):
     start = time.time()
 
     gpus = 1 if opt.device == 'cuda' else 0
+
     trainer = pl.Trainer(max_epochs=opt.epochs, gpus=gpus)
     trainer.fit(model, opt.train)
     # if opt.checkpoint > 0:
@@ -129,9 +138,6 @@ def train_model(model, opt):
     #     torch.save(model.state_dict(), 'weights/model_weights.pkl')
 
     # for i, batch in enumerate(opt.train):
-
-
-
         # print("%dm: epoch %d [%s%s]  %d%%  loss = %.3f\nepoch %d complete, loss = %.03f" % \
         #       ((time.time() - start) // 60, epoch + 1, "".join('#' * (100 // 5)), "".join(' ' * (20 - (100 // 5))), 100,
         #        avg_loss, epoch + 1, avg_loss))

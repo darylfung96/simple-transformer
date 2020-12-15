@@ -9,9 +9,7 @@ def init_vars(src, model, SRC, TRG, opt):
     src_mask = (src != SRC.vocab.stoi['<pad>']).unsqueeze(-2)
     e_output = model.encoder(src, src_mask)
 
-    outputs = torch.LongTensor([[init_tok]])
-    if opt.device == 0:
-        outputs = outputs.cuda()
+    outputs = torch.LongTensor([[init_tok]]).to(opt.device)
 
     trg_mask = nopeak_mask(1, opt)
 
@@ -22,16 +20,19 @@ def init_vars(src, model, SRC, TRG, opt):
     probs, ix = out[:, -1].data.topk(opt.k)
     log_scores = torch.Tensor([math.log(prob) for prob in probs.data[0]]).unsqueeze(0)
 
-    outputs = torch.zeros(opt.k, opt.max_len).long()
-    if opt.device == 0:
-        outputs = outputs.cuda()
+    outputs = torch.zeros(opt.k, opt.max_len).long().to(opt.device)
     outputs[:, 0] = init_tok
     outputs[:, 1] = ix[0]
 
-    e_outputs = torch.zeros(opt.k, e_output.size(-2), e_output.size(-1))
-    if opt.device == 0:
-        e_outputs = e_outputs.cuda()
-    e_outputs[:, :] = e_output[0]
+    if opt.is_hierarchical:
+        e_outputs = []
+        for i in range(len(e_output)):
+            single_e_outputs = torch.zeros(opt.k, e_output[0].size(-2), e_output[0].size(-1))
+            single_e_outputs[:, :] = single_e_outputs[0].to(opt.device)
+            e_outputs.append(single_e_outputs)
+    else:
+        e_outputs = torch.zeros(opt.k, e_output.size(-2), e_output.size(-1))
+        e_outputs[:, :] = e_outputs[0].to(opt.device)
 
     return outputs, e_outputs, log_scores
 
@@ -69,7 +70,7 @@ def beam_search(src, model, SRC, TRG, opt):
         outputs, log_scores = k_best_outputs(outputs, out, log_scores, i, opt.k)
 
         ones = (outputs == eos_tok).nonzero()  # Occurrences of end symbols for all input sentences.
-        sentence_lengths = torch.zeros(len(outputs), dtype=torch.long).cuda()
+        sentence_lengths = torch.zeros(len(outputs), dtype=torch.long).to(opt.device)
         for vec in ones:
             i = vec[0]
             if sentence_lengths[i] == 0:  # First end symbol has not been found yet

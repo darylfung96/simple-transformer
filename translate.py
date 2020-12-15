@@ -45,8 +45,11 @@ def main():
     parser.add_argument('-load_weights', required=True)
     parser.add_argument('-src_lang', required=True)
     parser.add_argument('-trg_lang', required=True)
-    parser.add_argument('-device', default='cpu')
+    parser.add_argument('-device', type=str, default='cpu')
+    parser.add_argument('-k', default=3)
+    parser.add_argument('-max_len', default=80)
     parser.add_argument('-max_strlen', default=80)
+    parser.add_argument('-floyd', action='store_true')
     parser.add_argument('-is_hierarchical', action='store_true')
     opt = parser.parse_args()
 
@@ -56,11 +59,12 @@ def main():
 
     SRC, TRG = create_fields(opt)
     model = SimpleTransformer(len(SRC.vocab), len(TRG.vocab), dims, N, heads, opt)
-    model.load_state_dict(torch.load(os.path.join(opt.load_weights, 'model_weights.pkl')))
+    model.load_state_dict(torch.load(os.path.join(opt.load_weights, 'model_weights.pth'), map_location=opt.device))
 
     while True:
         text = input('enter an english sentence to translate to french: ')
-        translate(text, model, opt, SRC, TRG)
+        sentence = translate(text, model, opt, SRC, TRG)
+        print(sentence)
 
 
 if __name__ == '__main__':
