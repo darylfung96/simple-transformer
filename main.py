@@ -1,4 +1,5 @@
 import argparse
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -54,7 +55,8 @@ class LightningTransformer(pl.LightningModule):
     def __init__(self, src_vocab, target_vocab, dims, N, heads, opti):
         super(LightningTransformer, self).__init__()
         self.transformer = SimpleTransformer(src_vocab, target_vocab, dims, N, heads, opt)
-        self.transformer.load_state_dict(torch.load('weights/model_weights.pth', map_location=opt.device))
+        if os.path.isfile('weights/model_weights.pth'):
+            self.transformer.load_state_dict(torch.load('weights/model_weights.pth', map_location=opt.device))
         self.cptime = time.time()
         self.opt = opt
         self.total_loss = 0
