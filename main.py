@@ -90,7 +90,7 @@ class LightningTransformer(pl.LightningModule):
             self.total_loss = 0
 
         if opt.checkpoint > 0 and ((time.time() - self.cptime) // 60) // opt.checkpoint >= 1:
-            torch.save(self.transformer.state_dict(), 'weights/model_weights.pkl')
+            torch.save(self.transformer.state_dict(), 'weights/model_weights.pth')
             self.cptime = time.time()
 
         self.log('training_loss', loss.item(), on_step=True, on_epoch=True, prog_bar=True, logger=True)

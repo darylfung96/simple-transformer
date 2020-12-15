@@ -258,8 +258,9 @@ class HierarchicalEncoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, vocab_size, dims, N, heads):
+    def __init__(self, vocab_size, dims, N, heads, opt):
         super(Decoder, self).__init__()
+        self.opt = opt
         self.embed = Embedder(vocab_size, dims)
         self.pe = PositionalEncoding(dims)
         self.layers = get_clones(DecoderLayer(dims, heads), N)
@@ -270,7 +271,11 @@ class Decoder(nn.Module):
         x = self.embed(target)
         x = self.pe(x)
         for i in range(self.num_layers):
-            x = self.layers[i](x, encoder_outputs[i], source_mask, target_mask)
+            if self.opt.is_hierarchical:
+                x = self.layers[i](x, encoder_outputs[i], source_mask, target_mask)
+            else:
+                x = self.layers[i](x, encoder_outputs, source_mask, target_mask)
+
         return self.norm(x)
 
 
@@ -282,7 +287,7 @@ class SimpleTransformer(nn.Module):
             self.encoder = HierarchicalEncoder(src_vocab, dims, N, heads, opt)
         else:
             self.encoder = Encoder(src_vocab, dims, N, heads, opt)
-        self.decoder = Decoder(target_vocab, dims, N, heads)
+        self.decoder = Decoder(target_vocab, dims, N, heads, opt)
         self.out = nn.Linear(dims, target_vocab)
 
     def forward(self, src, target, src_mask, target_mask):
